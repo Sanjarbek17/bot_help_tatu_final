@@ -8,6 +8,13 @@ import subprocess
 import logging
 
 
+# Configure logging with more detail
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    datefmt='%H:%M:%S'
+)
+
 # Global variables
 TEXT_FILE_PATH = "mb.txt"
 popup_window = None
@@ -17,6 +24,9 @@ root = None
 is_running = True
 MAX_RESULTS = 4  # Limit maximum number of results
 
+logging.info("=" * 50)
+logging.info("Starting main.py application")
+logging.info("=" * 50)
 
 # Add exception hook to catch unhandled exceptions
 def handle_exception(exc_type, exc_value, exc_traceback):
@@ -90,6 +100,7 @@ def check_accessibility_permissions():
 
 
 def search_in_file(keyword, context_lines=4):  # Reduced context lines tcp
+    logging.info(f"Searching for keyword: '{keyword}'")
     results = []
 
     try:
@@ -128,22 +139,30 @@ def search_in_file(keyword, context_lines=4):  # Reduced context lines tcp
         logging.error(f"Error reading file: {str(e)}")
         results.append(f"[Error reading file: {e}]")
 
+    if results:
+        logging.info(f"Found {len(results)} match(es) for '{keyword}'")
+    else:
+        logging.info(f"No match found for '{keyword}'")
     return results if results else [f"No match found for: '{keyword}'"]
 
 
 def create_popup(text_list):
+    logging.info(f"Creating popup with {len(text_list)} result(s)")
     global popup_window, current_index, root
 
     if not root:
+        logging.warning("Root window not available for popup")
         return
 
     if not root.winfo_exists():
+        logging.warning("Root window does not exist")
         return
 
     current_index = 0
 
     try:
         if popup_window and popup_window.winfo_exists():
+            logging.debug("Destroying existing popup window")
             popup_window.destroy()
             del popup_window  # Explicitly delete old window
 
@@ -228,6 +247,7 @@ def show_popup(text_list):
 
 def on_mouse_release(x, y, button, pressed):
     if not pressed and is_running:
+        logging.debug(f"Mouse released at ({x}, {y})")
         try:
             kb = keyboard.Controller()
             with kb.pressed(keyboard.Key.ctrl):
@@ -238,22 +258,29 @@ def on_mouse_release(x, y, button, pressed):
             selected = pyperclip.paste().strip()
 
             if not selected:
+                logging.debug("No text selected")
                 return
 
+            logging.info(f"Text selected: '{selected[:50]}...'" if len(selected) > 50 else f"Text selected: '{selected}'")
             global last_text
             if selected and selected != last_text:
                 last_text = selected
                 matches = search_in_file(selected)
                 show_popup(matches)
+            else:
+                logging.debug("Same text as before, skipping")
         except Exception as e:
-            pass
+            logging.error(f"Error in mouse release handler: {str(e)}")
 
 
 if __name__ == "__main__":
     try:
+        logging.info("Checking accessibility permissions...")
         if not check_accessibility_permissions():
+            logging.error("Accessibility permissions not granted")
             sys.exit(1)
 
+        logging.info("Creating root window...")
         root = tk.Tk()
         root.protocol(
             "WM_DELETE_WINDOW",
@@ -263,21 +290,28 @@ if __name__ == "__main__":
             ),
         )
         root.withdraw()
+        logging.info("Root window created and hidden")
 
+        logging.info("Starting mouse listener...")
         mouse_listener = mouse.Listener(on_click=on_mouse_release)
         mouse_listener.daemon = True
         mouse_listener.start()
+        logging.info("Mouse listener started successfully")
 
         def check_running():
             if is_running and root.winfo_exists():
                 root.after(1000, check_running)
             else:
+                logging.info("Application shutting down...")
                 root.quit()
 
+        logging.info("Application is now running. Select text with mouse to search.")
+        logging.info("Press Ctrl+C in terminal to quit.")
         root.after(1000, check_running)
         root.mainloop()
 
     except Exception as e:
+        logging.error(f"Fatal error in main: {str(e)}")
         sys.exit(1)
     finally:
-        pass
+        logging.info("Application terminated")
